@@ -1,15 +1,28 @@
 # tests/test_main.py
-def test_index_page(client):
-    """메인 페이지가 잘 나오는지 검사합니다."""
-    response = client.get('/')  # 메인 주소('/')에 접속해봐!
-    assert response.status_code != 500
-    assert response.status_code == 200  # 응답 코드가 200(성공)이니?
-    assert "환영합니다".encode('utf-8') in response.data # 화면에 '환영합니다'라는 글자가 있니?
+def test_main_index(client):
+    """홈페이지 접속 테스트"""
+    response = client.get('/')
+    assert response.status_code == 200
+    # 데이터를 텍스트(Unicode)로 변환하여 비교
+    page_content = response.get_data(as_text=True)
+    assert "서비스" in page_content
+    assert "환영합니다" in page_content
+    assert "API 키" in page_content
 
-def test_services_page(client):
-    """서비스 페이지 접속을 검사합니다."""
-    response = client.get('/services')
-    # 아직 view 함수에 내용이 없어도, 최소한 서버 에러(500)는 안 나야 해요.
-    assert response.status_code != 500
-    assert response.status_code == 200  # 응답 코드가 200(성공)이니?
-    assert "서비스".encode('utf-8') in response.data # 화면에 '서비스'라는 글자가 있니?
+def test_login_process(client, app):
+    """회원가입 및 로그인 통합 테스트"""
+    # 1. 회원가입
+    client.post('/auth/signup', data={
+        'username': 'tester',
+        'email': 'tester@example.com',
+        'password': 'password123',
+        'confirm_password': 'password123'
+    }, follow_redirects=True)
+    # 2. 로그인 확인
+    response = client.post('/auth/login', data={
+        'email': 'tester@example.com',
+        'password': 'password123'
+    }, follow_redirects=True)
+    
+    assert response.status_code == 200
+    assert b"tester" in response.data
