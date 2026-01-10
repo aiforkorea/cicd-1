@@ -21,7 +21,7 @@ def signup():
             password=form.password.data 
         )
         if user.is_duplicate_email():  #이메일주소중복체크
-            flash("입력한 이메일은 이미 등록됨")
+            flash("입력한 이메일은 이미 등록됨", "danger") # "danger" 카테고리 추가
             return redirect(url_for("auth.signup"))
         db.session.add(user)  # 사용자 정보 DB 등록
         db.session.commit()

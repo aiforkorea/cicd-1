@@ -13,7 +13,8 @@ def create_app():   # factory 함수
     # 로깅 설정
     if app.debug:  # 개발 환경에서는 콘솔에만 로깅 (디버그 모드에서만)
         app.logger.setLevel(logging.DEBUG)
-    else: # 프로덕션 환경에서는 파일에 로깅
+# [수정] TESTING 모드가 아닐 때만 파일 로깅 활성화 (윈도우 파일 잠금 방지)
+    elif not app.testing: 
         if not os.path.exists('logs'):
             os.mkdir('logs')
         file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
