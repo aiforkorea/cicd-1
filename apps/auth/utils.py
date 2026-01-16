@@ -21,17 +21,18 @@ def send_async_email(app, msg):
         mail.send(msg)
 
 def send_email(subject, to, template, **kwargs):
-    # current_app 대신 실제 앱 객체 참조
     app = current_app._get_current_object()
-    msg = Message(subject, recipients=[to])
-    # 템플릿 렌더링
+    
+    # [수정] sender를 설정에서 가져오거나 기본값을 명시하여 AssertionError 해결
+    sender = app.config.get('MAIL_DEFAULT_SENDER') or app.config.get('MAIL_USERNAME')
+    
+    msg = Message(subject, recipients=[to], sender=sender)
     msg.body = render_template(template + '.html', **kwargs)
     msg.html = render_template(template + '.html', **kwargs)
 
-    # [수정] 테스트 모드라면 스레드를 생성하지 않고 즉시 전송 (가로채기 가능하도록)
+    # 테스트 모드라면 동기 방식으로 전송 (가로채기용)
     if app.config.get('TESTING'):
         with app.app_context():
             mail.send(msg)
     else:
-        # 실제 운영/개발 환경에서는 비동기 전송
         Thread(target=send_async_email, args=[app, msg]).start()

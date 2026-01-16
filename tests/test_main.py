@@ -4,15 +4,14 @@ from apps.dbmodels import User, UserType
 from apps.extensions import db, mail
 
 def test_main_index(client):
-    """홈페이지 접속 테스트"""
     response = client.get('/')
     assert response.status_code == 200
     assert "서비스" in response.get_data(as_text=True)
 
 def test_login_process(client, app):
     """회원가입 시 메일 가로채기 확인 및 로그인 테스트"""
-    # 1. 회원가입 및 메일 전송 가로채기
     with mail.record_messages() as outbox:
+        # 1. 회원가입
         client.post('/auth/signup', data={
             'username': 'tester',
             'email': 'tester@example.com',
@@ -20,7 +19,6 @@ def test_login_process(client, app):
             'confirm_password': 'password123'
         }, follow_redirects=True)
 
-        # utils.py에서 동기 방식으로 보냈으므로 이제 outbox에 즉시 쌓임
         assert len(outbox) == 1
         assert "인증" in outbox[0].subject
 
@@ -37,15 +35,13 @@ def test_login_process(client, app):
         'password': 'password123'
     }, follow_redirects=True)
     
-    # 텍스트 검증 (로그인 시 보통 사용자 이름이 네비바 등에 나타남)
-    page_text = response.get_data(as_text=True)
     assert response.status_code == 200
-    assert "tester" in page_text
+    assert "tester" in response.get_data(as_text=True)
 
 def test_admin_menu_visibility(client, app):
     """권한별 관리자 메뉴 노출 테스트"""
     with app.app_context():
-        # 기존 테스트 유저 삭제 (충돌 방지)
+        # 데이터 정리
         User.query.filter(User.email.in_(['u@t.com', 'a@t.com'])).delete()
         
         user = User(username='regular', email='u@t.com', password='p1', 
@@ -55,7 +51,7 @@ def test_admin_menu_visibility(client, app):
         db.session.add_all([user, admin])
         db.session.commit()
 
-    # 유저 로그인 -> 관리자 메뉴 없어야 함
+    # 일반 유저 로그인
     client.post('/auth/login', data={'email': 'u@t.com', 'password': 'p1'}, follow_redirects=True)
     page_user = client.get('/').get_data(as_text=True)
     assert "regular" in page_user
@@ -63,38 +59,27 @@ def test_admin_menu_visibility(client, app):
     
     client.get('/auth/logout', follow_redirects=True)
 
-    # 관리자 로그인 -> 보스 이름과 관리자 메뉴 키워드 확인
+    # 관리자 로그인
     client.post('/auth/login', data={'email': 'a@t.com', 'password': 'p1'}, follow_redirects=True)
     page_admin = client.get('/').get_data(as_text=True)
     assert "boss" in page_admin
-    # 실제 base.html에 "관리자"라는 글자가 포함되어 있다면 아래 주석 해제
-    # assert "관리자" in page_admin
 
 def test_login_failure_invalid_password(client, app):
-    """실패 케이스: 잘못된 비밀번호"""
     with app.app_context():
         User.query.filter_by(email='f@t.com').delete()
         db.session.add(User(username='f', email='f@t.com', password='correct', confirmed=True))
         db.session.commit()
 
-    response = client.post('/auth/login', data={
-        'email': 'f@t.com',
-        'password': 'wrong'
-    }, follow_redirects=True)
-
-    # views.py의 flash 메시지 키워드 확인
+    response = client.post('/auth/login', data={'email': 'f@t.com', 'password': 'wrong'}, follow_redirects=True)
     assert "확인 필요" in response.get_data(as_text=True)
 
 def test_signup_duplicate_email(client, app):
-    """실패 케이스: 중복 이메일 가입"""
     with app.app_context():
         User.query.filter_by(email='dup@t.com').delete()
         db.session.add(User(username='e', email='dup@t.com', password='p', confirmed=True))
         db.session.commit()
 
     response = client.post('/auth/signup', data={
-        'username': 'n', 'email': 'dup@t.com', 
-        'password': 'p', 'confirm_password': 'p'
+        'username': 'n', 'email': 'dup@t.com', 'password': 'p', 'confirm_password': 'p'
     }, follow_redirects=True)
-    
     assert "이미 사용 중" in response.get_data(as_text=True)

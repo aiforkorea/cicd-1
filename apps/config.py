@@ -34,8 +34,12 @@ class Config:
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')    
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 
+# apps/config.py 부분 수정
 class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False
-    MAIL_SUPPRESS_SEND = True # 실제 발송 억제 핵심 설정
+    MAIL_SUPPRESS_SEND = True
+    # [추가] 테스트용 발신자 정보 강제 설정
+    MAIL_USERNAME = "test@example.com"
+    MAIL_DEFAULT_SENDER = "test@example.com"
