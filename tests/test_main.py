@@ -78,7 +78,7 @@ def test_signup_duplicate_email(client, app):
         User.query.filter_by(email='dup@t.com').delete()
         db.session.add(User(username='e', email='dup@t.com', password='p', confirmed=True))
         db.session.commit()
-
+ 
     response = client.post('/auth/signup', data={
         'username': 'n', 'email': 'dup@t.com', 'password': 'p', 'confirm_password': 'p'
     }, follow_redirects=True)
