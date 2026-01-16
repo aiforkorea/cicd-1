@@ -1,0 +1,11 @@
+<!-- apps/templates/auth/email/login_notofication.html  -->
+<div style="border: 1px solid #ff0000; padding: 15px;">
+    <h3 style="color: #ff0000;">⚠️ 새로운 로그인 감지</h3>
+    <p>{{ username }}님의 계정에 새로운 로그인이 발생했습니다.</p>
+    <ul>
+        <li><strong>일시:</strong> {{ login_time }}</li>
+        <li><strong>IP 주소:</strong> {{ ip_address }}</li>
+        <li><strong>기기 정보:</strong> {{ user_agent }}</li>
+    </ul>
+    <p>본인이 아닌 경우 즉시 비밀번호를 변경해 주세요.</p>
+</div>

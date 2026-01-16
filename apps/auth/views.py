@@ -1,6 +1,8 @@
 # apps/auth/views.py
+from datetime import datetime
 from flask import current_app, render_template, flash, url_for, redirect, request
 from flask_login import login_user, logout_user
+from apps.auth.utils import confirm_token, generate_token, send_email
 from apps.extensions import db
 from apps.dbmodels import User
 from .forms import SignUpForm, LoginForm
@@ -11,28 +13,36 @@ from . import auth  # 현재 패키지(__init__.py)의 auth Blueprint 객체 임
 def index():
     return render_template("auth/index.html")
 # signup 엔드포인트
-@auth.route("/signup",methods=["GET", "POST"])     
+
+@auth.route("/signup", methods=["GET", "POST"])
 def signup():
-    form = SignUpForm()  # SingUpForm 객체 form 생성
+    form = SignUpForm()
     if form.validate_on_submit():
         user = User(
             username=form.username.data,
             email=form.email.data,
-            password=form.password.data 
+            password=form.password.data,
+            confirmed=False # 기본값 미인증
         )
-        if user.is_duplicate_email():  #이메일주소중복체크
-            flash("입력한 이메일은 이미 등록됨", "danger") # "danger" 카테고리 추가
-            return redirect(url_for("auth.signup"))
-        db.session.add(user)  # 사용자 정보 DB 등록
+        db.session.add(user)
         db.session.commit()
-        login_user(user)   # 사용자 정보 세션 저장
-        # GET패러미터에 next키가 존재하면(보호페이지 사전 방문한 경우) 원래 방문 페이지로 redirect
-        # next 값이 없는 경우는 사용자의 목록 페이지로 redirect
-        next_ = request.args.get("next")
-        if next_ is None or not next_.startswith("/"):
-            next_ = url_for("main.index") # main.index로 이동
-        return redirect(next_)
-    return render_template("auth/signup.html",form= form)
+        
+        # 토큰 생성 및 메일 발송
+        token = generate_token(user.email, salt='email-confirm-salt')
+        confirm_url = url_for('auth.confirm_email', token=token, _external=True)
+        
+        send_email(
+            subject="[서비스] 이메일 주소를 인증해주세요",
+            to=user.email,
+            template="auth/email/confirm", # templates/auth/email/confirm.html 필요
+            username=user.username,
+            confirm_url=confirm_url
+        )
+        
+        flash("가입 확인 메일이 발송되었습니다. 이메일을 확인해주세요.", "info")
+        return redirect(url_for("auth.login"))
+    
+    return render_template("auth/signup.html", form=form)
 # login 엔드포인트
 @auth.route("/login",methods=["GET", "POST"])     
 def login():
@@ -45,8 +55,17 @@ def login():
         user = User.query.filter_by(email=form.email.data).first()
         # DB에 사용자 존재 및 비번 일치하면
         if user is not None and user.verify_password(form.password.data): 
+
+            if not user.confirmed:
+                flash("이메일 인증이 필요합니다. 메일 확인 필요", "warning")
+                return redirect(url_for("auth.login"))
             # 사용자 정보 세션 저장
-            login_user(user)
+            login_user(user, remember=form.remember.data)
+            
+            send_email("[보안] 로그인 알림", user.email, "auth/email/login_notification",
+                       username=user.username, login_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                       ip_address=request.remote_addr, user_agent=request.user_agent.string)
+
             return redirect(url_for("main.index"))   # main.index로 이동
         # 로그인 실패 메시지
         flash("이메일 주소 및 비번 확인 필요")
@@ -57,3 +76,47 @@ def logout():
     # 사용자 로그아웃
     logout_user()
     return redirect(url_for("auth.login"))
+
+@auth.route('/confirm/<token>')
+def confirm_email(token):
+    email = confirm_token(token, salt='email-confirm-salt')
+    if not email:
+        flash('인증 링크가 만료되었거나 잘못되었습니다.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    user = User.query.filter_by(email=email).first_or_404()
+    if user.confirmed:
+        flash('이미 인증된 계정입니다.', 'success')
+    else:
+        user.confirmed = True
+        user.confirmed_at = datetime.now()
+        db.session.commit()
+        flash('이메일 인증이 완료되었습니다!', 'success')
+    return redirect(url_for('main.index'))
+
+@auth.route('/reset_password_request', methods=['GET', 'POST'])
+def reset_password_request():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = generate_token(user.email, salt='password-reset-salt')
+            # 여기서 실제로 이메일 발송 함수 호출 (예: send_email(user.email, token))
+            flash('비밀번호 재설정 이메일을 발송했습니다.', 'info')
+            return redirect(url_for('auth.login'))
+    return render_template('auth/reset_password_request.html')
+
+@auth.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    email = confirm_token(token, salt='password-reset-salt')
+    if not email:
+        flash('유효하지 않거나 만료된 토큰입니다.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    if request.method == 'POST':
+        user = User.query.filter_by(email=email).first_or_404()
+        user.password = request.form.get('password') # Setter에 의해 해싱됨
+        db.session.commit()
+        flash('비밀번호가 변경되었습니다.', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/reset_password.html')

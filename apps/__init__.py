@@ -3,7 +3,7 @@ import os,logging
 from logging.handlers import RotatingFileHandler   # logging 추가
 from flask import Flask
 from werkzeug.security import generate_password_hash
-from .extensions import db, migrate, login_manager, csrf
+from .extensions import db, migrate, login_manager, csrf, mail
 from .config import Config
 from apps.dbmodels import UserType, User
 # 전역 변수/인스턴스 초기화 (extensions.py에서 정의)
@@ -27,6 +27,7 @@ def create_app():   # factory 함수
     migrate.init_app(app,db)              # 없으면, flask db 명령어를 사용불가
     login_manager.init_app(app)  # flask 앱에 로그인 관리 연결
     csrf.init_app(app)                    # flask 앱에 CSRF 보호 연결 
+    mail.init_app(app)
 
     # Flask-Login: 사용자 로더 설정 (auth 블루프린트에서 import하여 사용)
     # create_app() 정의 또는 auth/__init__.py 정의하여 login_manager.user_loader 데코레이터와 함께 사용
@@ -53,7 +54,7 @@ def create_app():   # factory 함수
     app.register_blueprint(auth, url_prefix='/auth')
     # db 테이블 생성 및 관리자 초기계정 생성
     with app.app_context():
-        #db.drop_all()         # 운영시에는 커멘트 처리 필요
+        db.drop_all()         # 운영시에는 커멘트 처리 필요
         db.create_all()       # 테이블 생성
         # 최초 관리자 계정 생성
         admin_username = app.config.get('ADMIN_USERNAME')
