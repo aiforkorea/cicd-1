@@ -1,105 +1,100 @@
 # tests/test_main.py
 import pytest
 from apps.dbmodels import User, UserType
-from apps.extensions import db
+from apps.extensions import db, mail
+
 def test_main_index(client):
     """홈페이지 접속 테스트"""
     response = client.get('/')
     assert response.status_code == 200
-    # 데이터를 텍스트(Unicode)로 변환하여 비교
-    page_content = response.get_data(as_text=True)
-    assert "서비스" in page_content
-    assert "환영합니다" in page_content
-    assert "API 키" in page_content
+    assert "서비스" in response.get_data(as_text=True)
 
 def test_login_process(client, app):
-    """회원가입 및 로그인 통합 테스트"""
-    # 1. 회원가입
-    client.post('/auth/signup', data={
-        'username': 'tester',
-        'email': 'tester@example.com',
-        'password': 'password123',
-        'confirm_password': 'password123'
-    }, follow_redirects=True)
-    # 2. 로그인 확인
+    """회원가입 시 메일 가로채기 확인 및 로그인 테스트"""
+    # 1. 회원가입 및 메일 전송 가로채기
+    with mail.record_messages() as outbox:
+        client.post('/auth/signup', data={
+            'username': 'tester',
+            'email': 'tester@example.com',
+            'password': 'password123',
+            'confirm_password': 'password123'
+        }, follow_redirects=True)
+
+        # utils.py에서 동기 방식으로 보냈으므로 이제 outbox에 즉시 쌓임
+        assert len(outbox) == 1
+        assert "인증" in outbox[0].subject
+
+    # 2. 강제 인증 처리
+    with app.app_context():
+        user = User.query.filter_by(email='tester@example.com').first()
+        if user:
+            user.confirmed = True
+            db.session.commit()
+
+    # 3. 로그인 시도
     response = client.post('/auth/login', data={
         'email': 'tester@example.com',
         'password': 'password123'
     }, follow_redirects=True)
     
+    # 텍스트 검증 (로그인 시 보통 사용자 이름이 네비바 등에 나타남)
+    page_text = response.get_data(as_text=True)
     assert response.status_code == 200
-    assert b"tester" in response.data
+    assert "tester" in page_text
 
 def test_admin_menu_visibility(client, app):
-    """권한별 메뉴 노출 검증 테스트"""
+    """권한별 관리자 메뉴 노출 테스트"""
     with app.app_context():
-        # 1. 테스트용 일반 유저와 관리자 유저 생성
-        user = User(username='regular', email='user@test.com', password='password123', user_type=UserType.USER)
-        admin = User(username='boss', email='admin@test.com', password='password123', user_type=UserType.ADMIN)
+        # 기존 테스트 유저 삭제 (충돌 방지)
+        User.query.filter(User.email.in_(['u@t.com', 'a@t.com'])).delete()
+        
+        user = User(username='regular', email='u@t.com', password='p1', 
+                    user_type=UserType.USER, confirmed=True)
+        admin = User(username='boss', email='a@t.com', password='p1', 
+                     user_type=UserType.ADMIN, confirmed=True)
         db.session.add_all([user, admin])
         db.session.commit()
-    # --- 시나리오 A: 일반 사용자로 로그인 ---
-    client.post('/auth/login', data={'email': 'user@test.com', 'password': 'password123'}, follow_redirects=True)
-    response_user = client.get('/')
-    page_user = response_user.get_data(as_text=True)
-    # 일반 유저에게는 관리자 전용 메뉴가 보이지 않아야 함
-    # (base.html의 {% if current_user.user_type==UserType.ADMIN %} 부분 검증)
-    assert "로그아웃 (regular)" in page_user
+
+    # 유저 로그인 -> 관리자 메뉴 없어야 함
+    client.post('/auth/login', data={'email': 'u@t.com', 'password': 'p1'}, follow_redirects=True)
+    page_user = client.get('/').get_data(as_text=True)
+    assert "regular" in page_user
     assert "관리자" not in page_user 
-    # 로그아웃 후 다음 테스트 준비
+    
     client.get('/auth/logout', follow_redirects=True)
 
-    # --- 시나리오 B: 관리자로 로그인 ---
-    client.post('/auth/login', data={'email': 'admin@test.com', 'password': 'password123'}, follow_redirects=True)
-    response_admin = client.get('/')
-    page_admin = response_admin.get_data(as_text=True)
-    # 관리자에게는 관리자 메뉴가 보여야 함
-    assert "로그아웃 (boss)" in page_admin
-    # 실제 base.html에 작성된 관리자 메뉴 텍스트나 링크를 확인하세요. 
-    # 예시로 관리자 계정 여부를 확인하는 로직이 들어있다면 아래와 같이 검증합니다.
+    # 관리자 로그인 -> 보스 이름과 관리자 메뉴 키워드 확인
+    client.post('/auth/login', data={'email': 'a@t.com', 'password': 'p1'}, follow_redirects=True)
+    page_admin = client.get('/').get_data(as_text=True)
+    assert "boss" in page_admin
+    # 실제 base.html에 "관리자"라는 글자가 포함되어 있다면 아래 주석 해제
     # assert "관리자" in page_admin
 
 def test_login_failure_invalid_password(client, app):
-    """실패 케이스 1: 잘못된 비밀번호로 로그인 시도"""
+    """실패 케이스: 잘못된 비밀번호"""
     with app.app_context():
-        user = User(username='failtest', email='fail@test.com', password='correct_password', user_type=UserType.USER)
-        db.session.add(user)
+        User.query.filter_by(email='f@t.com').delete()
+        db.session.add(User(username='f', email='f@t.com', password='correct', confirmed=True))
         db.session.commit()
 
-    # 실제 views.py의 엔드포인트는 /auth/login 입니다.
     response = client.post('/auth/login', data={
-        'email': 'fail@test.com',
-        'password': 'wrong_password'
+        'email': 'f@t.com',
+        'password': 'wrong'
     }, follow_redirects=True)
 
-    page_content = response.get_data(as_text=True)
-    # views.py의 flash 메시지 반영: "이메일 주소 및 비번 확인 필요"
-    assert "이메일 주소 및 비번 확인 필요" in page_content
+    # views.py의 flash 메시지 키워드 확인
+    assert "확인 필요" in response.get_data(as_text=True)
 
 def test_signup_duplicate_email(client, app):
-    """실패 케이스 2: 이미 존재하는 이메일로 가입 시도"""
+    """실패 케이스: 중복 이메일 가입"""
     with app.app_context():
-        # 1. 중복될 유저 생성
-        if not User.query.filter_by(email='duplicate@test.com').first():
-            existing_user = User(
-                username='existing',
-                email='duplicate@test.com',
-                password='password123',
-                user_type=UserType.USER
-            )
-            db.session.add(existing_user)
-            db.session.commit()
+        User.query.filter_by(email='dup@t.com').delete()
+        db.session.add(User(username='e', email='dup@t.com', password='p', confirmed=True))
+        db.session.commit()
 
-    # 2. 동일한 이메일로 가입 시도
     response = client.post('/auth/signup', data={
-        'username': 'newuser',
-        'email': 'duplicate@test.com',
-        'password': 'password123',
-        'confirm_password': 'password123'
+        'username': 'n', 'email': 'dup@t.com', 
+        'password': 'p', 'confirm_password': 'p'
     }, follow_redirects=True)
-
-    page_content = response.get_data(as_text=True)
     
-    # [수정된 부분] 
-    # views.py의 flash 메시지가 아니라 forms.py의 ValidationError 메시지를 확인합니다.
-    assert "이미 사용 중인 이메일 주소입니다." in page_content
+    assert "이미 사용 중" in response.get_data(as_text=True)

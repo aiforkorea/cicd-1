@@ -8,7 +8,7 @@ if os.environ.get('RENDER', None) != 'true':
     load_dotenv(dotenv_path)
 class Config:
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    SECRET_KEY = os.getenv('SECRET_KEY')
+    SECRET_KEY = os.getenv('SECRET_KEY', 'default-key')
     #API_KEY = os.getenv('API_KEY')
     #IRIS_LABELS = ['setosa', 'versicolor', 'virginica']
     INSTANCE_DIR = os.path.join(BASE_DIR, '..', 'instance')
@@ -27,10 +27,15 @@ class Config:
     MAIL_USERNAME = os.getenv('MAIL_USERNAME')
     MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.getenv('MAIL_USERNAME')
-    #
-    #
+    # 기본값은 발송 허용
+    MAIL_SUPPRESS_SEND = False 
     # ADMIN config 
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')    
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')    
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 
+class TestingConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+    MAIL_SUPPRESS_SEND = True # 실제 발송 억제 핵심 설정
