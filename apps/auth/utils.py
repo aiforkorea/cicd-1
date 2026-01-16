@@ -18,21 +18,25 @@ def confirm_token(token, salt, expiration=3600):
 
 def send_async_email(app, msg):
     with app.app_context():
-        mail.send(msg)
+        try:
+            mail.send(msg)
+        except Exception as e:
+            app.logger.error(f"비동기 메일 전송 실패: {e}")
 
 def send_email(subject, to, template, **kwargs):
     app = current_app._get_current_object()
     
-    # [수정] sender를 설정에서 가져오거나 기본값을 명시하여 AssertionError 해결
-    sender = app.config.get('MAIL_DEFAULT_SENDER') or app.config.get('MAIL_USERNAME')
-    
+    # 발신자 설정 확인
+    sender = app.config.get('MAIL_DEFAULT_SENDER')
     msg = Message(subject, recipients=[to], sender=sender)
+    
     msg.body = render_template(template + '.html', **kwargs)
     msg.html = render_template(template + '.html', **kwargs)
 
-    # 테스트 모드라면 동기 방식으로 전송 (가로채기용)
+    # Render 배포 환경에서 Network Unreachable이 계속된다면 
+    # 아래 Thread 부분을 주석처리하고 mail.send(msg)를 직접 호출해 보세요.
     if app.config.get('TESTING'):
-        with app.app_context():
-            mail.send(msg)
+        mail.send(msg)
     else:
+        # 비동기 전송 시도
         Thread(target=send_async_email, args=[app, msg]).start()
