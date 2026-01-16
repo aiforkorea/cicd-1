@@ -1,75 +1,67 @@
-# apps/__init__.py
-import os,logging
-from logging.handlers import RotatingFileHandler   # logging 추가
+import os, logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask
 from werkzeug.security import generate_password_hash
-from .extensions import db, migrate, login_manager, csrf
-from .config import Config
-from apps.dbmodels import UserType, User
-# 전역 변수/인스턴스 초기화 (extensions.py에서 정의)
-def create_app():   # factory 함수
+from .extensions import db, migrate, login_manager, csrf, mail
+from .config import Config # 기본 설정
+
+def create_app(config_class=Config): # 설정 클래스를 인자로 받음(테스트를 위해 추가 필요함)
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
+
     # 로깅 설정
-    if app.debug:  # 개발 환경에서는 콘솔에만 로깅 (디버그 모드에서만)
+    if app.debug:
         app.logger.setLevel(logging.DEBUG)
-# [수정] TESTING 모드가 아닐 때만 파일 로깅 활성화 (윈도우 파일 잠금 방지)
     elif not app.testing: 
         if not os.path.exists('logs'):
             os.mkdir('logs')
         file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
-        file_handler.setFormatter(logging.Formatter( '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]' )) 
-        file_handler.setLevel(logging.INFO) 
-        app.logger.addHandler(file_handler) 
-        app.logger.setLevel(logging.INFO)
-    # 확장 기능 초기화 연계
-    db.init_app(app)                      # flask 앱에 db연결
-    migrate.init_app(app,db)              # 없으면, flask db 명령어를 사용불가
-    login_manager.init_app(app)  # flask 앱에 로그인 관리 연결
-    csrf.init_app(app)                    # flask 앱에 CSRF 보호 연결 
+        file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
 
-    # Flask-Login: 사용자 로더 설정 (auth 블루프린트에서 import하여 사용)
-    # create_app() 정의 또는 auth/__init__.py 정의하여 login_manager.user_loader 데코레이터와 함께 사용
-    from .dbmodels import User  # User 모델 임포트
+    # 확장 기능 초기화
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login_manager.init_app(app)
+    csrf.init_app(app)
+    mail.init_app(app)
+
+    from .dbmodels import User, UserType
+
     @login_manager.user_loader
-    def load_user(user_id):   # Flask-Login이 user_id를 기반으로 사용자 객체를 로드
+    def load_user(user_id):
         return User.query.get(int(user_id))
-    # Flask-Login: Unauthorized Error 핸들링, login_view와 같은 기능이나, next 값 자동전달
+
     @login_manager.unauthorized_handler
     def unauthorized():
-        """로그인되지 않은 사용자가 @login_required 페이지에 접근 시 redirect"""
         from flask import flash, redirect, url_for, request
         flash('로그인이 필요합니다.', 'warning')
         return redirect(url_for('auth.login', next=request.path))
-    # 모든 템플릿에 'UserType' 변수를 추가합니다.
+
     @app.context_processor
     def inject_user_type():
         return {'UserType': UserType}
-    # 블루프린트 등록  -- auth 모듈이 없으므로 현재 오류 발생(auth 설치후 오류 없어짐)
+
     from .main import main
     from .auth import auth
-
     app.register_blueprint(main)
     app.register_blueprint(auth, url_prefix='/auth')
-    # db 테이블 생성 및 관리자 초기계정 생성
-    with app.app_context():
-        #db.drop_all()         # 운영시에는 커멘트 처리 필요
-        db.create_all()       # 테이블 생성
-        # 최초 관리자 계정 생성
-        admin_username = app.config.get('ADMIN_USERNAME')
-        admin_email = app.config.get('ADMIN_EMAIL')
-        admin_password = app.config.get('ADMIN_PASSWORD')
 
+    with app.app_context():
+        # 테스트 시에는 drop_all을 conftest에서 관리하므로 여기서는 create_all만 보장
+        db.create_all()
+        admin_username = app.config.get('ADMIN_USERNAME')
+        admin_password = app.config.get('ADMIN_PASSWORD')
         if admin_username and admin_password:
-            admin_user = User.query.filter_by(username=admin_username).first()
-            if not admin_user:
-                hashed_password = generate_password_hash(admin_password)
-                new_admin = User(username=admin_username, email=admin_email, password_hash=hashed_password, user_type=UserType.ADMIN)  # ADMIN 설정. is_admin=True 삭제
+            if not User.query.filter_by(username=admin_username).first():
+                new_admin = User(
+                    username=admin_username, 
+                    email=app.config.get('ADMIN_EMAIL'), 
+                    password=admin_password, # dbmodels의 password 세터 사용 가정
+                    user_type=UserType.ADMIN,
+                    confirmed=True # 관리자는 자동 인증
+                )
                 db.session.add(new_admin)
                 db.session.commit()
-                print(f"관리자 계정 '{admin_username}', '{admin_password}' 이(가) 생성되었습니다.")
-            else:
-                print(f"관리자 계정 '{admin_username}'이(가) 이미 존재합니다.")
-        else:
-            print("ADMIN_USERNAME 또는 ADMIN_PASSWORD 환경 변수가 설정되지 않았습니다.")
-        return app
+    return app

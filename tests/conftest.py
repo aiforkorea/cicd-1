@@ -4,18 +4,16 @@ import pytest, sys, os
 # ModuleNotFoundError: No module named 'apps' 에러 예방
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from apps import create_app
+from apps.config import TestingConfig
 from apps.extensions import db
 from apps.dbmodels import User, UserType
 
 @pytest.fixture
 def app():
-    app = create_app()
+    app = create_app(TestingConfig)
+# 추가적인 런타임 값 주입이 필요한 경우에만 update 사용
     app.config.update({
-        "TESTING": True,
-        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-        "WTF_CSRF_ENABLED": False,
-        "SECRET_KEY": "test-secret-key",  # 이 부분이 누락되어 세션 오류가 발생했습니다.
-        "ADMIN_USERNAME": "admin",        # 환경 변수 대신 테스트용 값 직접 주입
+        "ADMIN_USERNAME": "admin",
         "ADMIN_PASSWORD": "4321",
         "ADMIN_EMAIL": "admin@example.com"
     })

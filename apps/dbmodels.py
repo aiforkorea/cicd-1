@@ -18,7 +18,9 @@ class User(db.Model, UserMixin):
     user_type = db.Column(db.Enum(UserType), nullable=False, default=UserType.USER)
     #is_admin=db.Column(db.Boolean,default=False)   # 코드 수정 최소화를 위해 잔류
     is_active = db.Column(db.Boolean, default=True)
-    
+    confirmed = db.Column(db.Boolean, default=False)  # 이메일 인증 여부
+    confirmed_at = db.Column(db.DateTime, nullable=True)
+        
     usage_count = db.Column(db.Integer, default=0)
     daily_limit = db.Column(db.Integer, default=1000)
     monthly_limit = db.Column(db.Integer, default=5000)

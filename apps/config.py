@@ -8,7 +8,7 @@ if os.environ.get('RENDER', None) != 'true':
     load_dotenv(dotenv_path)
 class Config:
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    SECRET_KEY = os.getenv('SECRET_KEY')
+    SECRET_KEY = os.getenv('SECRET_KEY', 'default-key')
     #API_KEY = os.getenv('API_KEY')
     #IRIS_LABELS = ['setosa', 'versicolor', 'virginica']
     INSTANCE_DIR = os.path.join(BASE_DIR, '..', 'instance')
@@ -20,7 +20,26 @@ class Config:
     # REMEMBER_COOKIE_DURATION = 3600  # 1시간
     CSRF_ENABLED = True
     CSRF_SESSION_KEY = os.getenv('CSRF_SESSION_KEY', SECRET_KEY) # 없으면,SECRET_KEY사용
-#
+    # Mail Config
+    MAIL_SERVER = os.getenv('MAIL_SERVER')
+    MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True') == 'True'
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME')
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.getenv('MAIL_USERNAME')
+    # 기본값은 발송 허용
+    MAIL_SUPPRESS_SEND = False 
+    # ADMIN config 
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')    
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')    
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
+
+# apps/config.py 부분 수정
+class TestingConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+    MAIL_SUPPRESS_SEND = True
+    # [추가] 테스트용 발신자 정보 강제 설정
+    MAIL_USERNAME = "test@example.com"
+    MAIL_DEFAULT_SENDER = "test@example.com"

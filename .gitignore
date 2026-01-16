@@ -1,6 +1,7 @@
 # .gitignore
 .env
 myenv/
+logs/
 __pycache__/
 *.pyc
 *.pyo
