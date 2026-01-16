@@ -4,7 +4,7 @@ from flask_mail import Message
 from itsdangerous import URLSafeTimedSerializer
 from apps.extensions import mail
 from threading import Thread
-
+#
 def generate_token(email, salt):
     serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
     return serializer.dumps(email, salt=salt)
