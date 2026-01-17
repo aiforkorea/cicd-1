@@ -20,23 +20,18 @@ class Config:
     # REMEMBER_COOKIE_DURATION = 3600  # 1시간
     CSRF_ENABLED = True
     CSRF_SESSION_KEY = os.getenv('CSRF_SESSION_KEY', SECRET_KEY) # 없으면,SECRET_KEY사용
-    # Mail Config
-    # MAIL_SERVER = os.getenv('MAIL_SERVER')
-    MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-# 1. 포트 번호 정수 변환 (매우 중요)
-    MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
 
-# 2. 문자열 'True'를 불리언 True로 안전하게 변환
+# Brevo(Sendinblue) 이메일 설정
+    MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp-relay.brevo.com')
+    MAIL_PORT = int(os.getenv('MAIL_PORT', 587)) # 2525 포트 사용 권장
+    
+    # 2. 문자열 'True'를 불리언 True로 안전하게 변환
     MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True').lower() in ['true', '1', 't']
     MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', 'False').lower() in ['true', '1', 't']
-
-    MAIL_USERNAME = os.getenv('MAIL_USERNAME')
-    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.getenv('MAIL_USERNAME')
-    # Render 환경에서 가끔 발생하는 타임아웃 방지
-    MAIL_ASCII_ATTACHMENTS = False
-    # 기본값은 발송 허용
-    MAIL_SUPPRESS_SEND = False 
+    
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME') # Brevo Login 이메일
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD') # Brevo SMTP Key
+    MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', MAIL_USERNAME)
     # ADMIN config 
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')    
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')    
