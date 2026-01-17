@@ -1,3 +1,4 @@
+# apps/__init__.py
 import os, logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask

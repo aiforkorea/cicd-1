@@ -1,5 +1,12 @@
 <!-- apps/templates/auth/email/confirm.html  -->
-<h3>이메일 주소 인증</h3>
-<p>{{ username }}님, 안녕하세요! 가입을 완료하려면 아래 링크를 클릭하세요.</p>
-<p><a href="{{ confirm_url }}">여기 클릭하여 인증 완료</a></p>
-<p>이 링크는 1시간 동안만 유효합니다.</p>
+{% extends "auth/email/base_email.html" %}
+
+{% block content %}
+<h2 style="color: #007bff; margin-top: 0;">이메일 인증 안내</h2>
+<p>안녕하세요, <strong>{{ username }}</strong>님!</p>
+<p>가입해 주셔서 감사합니다. 아래 버튼을 클릭하여 이메일 인증을 완료해 주세요.</p>
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ confirm_url }}" style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">이메일 인증하기</a>
+</div>
+<p style="color: #666666; font-size: 14px;">링크는 1시간 동안만 유효합니다. 본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.</p>
+{% endblock %}
