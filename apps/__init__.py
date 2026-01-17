@@ -50,6 +50,7 @@ def create_app(config_class=Config): # 설정 클래스를 인자로 받음(테�
 
     with app.app_context():
         # 테스트 시에는 drop_all을 conftest에서 관리하므로 여기서는 create_all만 보장
+        db.drop_all()         # 운영시에는 커멘트 처리 필요
         db.create_all()
         admin_username = app.config.get('ADMIN_USERNAME')
         admin_password = app.config.get('ADMIN_PASSWORD')
