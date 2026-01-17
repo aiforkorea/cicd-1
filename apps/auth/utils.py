@@ -22,14 +22,11 @@ def send_async_email(app, msg):
             mail.send(msg)
         except Exception as e:
             app.logger.error(f"비동기 메일 전송 실패: {e}")
-
 def send_email(subject, to, template, **kwargs):
     app = current_app._get_current_object()
-    
     # 발신자 설정 확인
     sender = app.config.get('MAIL_DEFAULT_SENDER')
     msg = Message(subject, recipients=[to], sender=sender)
-    
     msg.body = render_template(template + '.html', **kwargs)
     msg.html = render_template(template + '.html', **kwargs)
 
