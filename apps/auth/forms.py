@@ -52,3 +52,16 @@ class ChangePasswordForm(FlaskForm):
     confirm_new_password = PasswordField('새 비밀번호 확인', validators=[DataRequired(), EqualTo('new_password')])
     submit = SubmitField('비밀번호 변경')
         
+# 1단계: 재설정 링크를 받기 위해 이메일을 입력하는 폼
+class ResetPasswordRequestForm(FlaskForm):
+    email = StringField("가입된 이메일 주소", 
+        validators=[DataRequired(), Email(message="올바른 이메일 형식이 아닙니다.")])
+    submit = SubmitField("재설정 링크 받기")
+
+# 2단계: 메일 링크 클릭 후 새 비밀번호를 입력하는 폼
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField("새 비밀번호", 
+        validators=[DataRequired(), length(min=10, message="10자 이상 입력하세요.")])
+    confirm_password = PasswordField("비밀번호 확인", 
+        validators=[DataRequired(), EqualTo('password', message="비밀번호가 일치하지 않습니다.")])
+    submit = SubmitField("비밀번호 변경 완료")
