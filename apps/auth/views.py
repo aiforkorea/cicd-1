@@ -127,7 +127,10 @@ def google_authorize():
     
     if not user:
         # 처음 온 사람이라면 회원가입 시켜주기
-        user = User(username=user_info['name'], email=user_info['email'], confirmed=True)
+        user = User(username=user_info['name'], email=user_info['email'], confirmed=True,
+                confirmed_at=datetime.now() # 인증 시간 기록
+                # password_hash는 None으로 들어감 (nullable=True이므로 허용됨)  
+        )
         db.session.add(user)
         db.session.commit()
     
