@@ -37,6 +37,9 @@ class Config:
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')    
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+
 # apps/config.py 부분 수정
 class TestingConfig(Config):
     TESTING = True

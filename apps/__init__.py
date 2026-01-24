@@ -5,6 +5,7 @@ from flask import Flask
 from werkzeug.security import generate_password_hash
 from .extensions import db, migrate, login_manager, csrf, mail
 from .config import Config # 기본 설정
+from apps.auth.utils import oauth, register_social_login # 이름 맞추기
 
 def create_app(config_class=Config): # 설정 클래스를 인자로 받음(테스트를 위해 추가 필요함)
     app = Flask(__name__)
@@ -28,6 +29,11 @@ def create_app(config_class=Config): # 설정 클래스를 인자로 받음(테�
     csrf.init_app(app)
     mail.init_app(app)
 
+    with app.app_context():
+        # 이 부분을 수정하세요!
+        from apps.auth.utils import register_social_login # 이름을 utils.py와 맞춤
+        register_social_login(app)
+        
     from .dbmodels import User, UserType
 
     @login_manager.user_loader

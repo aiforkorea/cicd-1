@@ -2,7 +2,7 @@
 from datetime import datetime
 from flask import current_app, render_template, flash, url_for, redirect, request
 from flask_login import login_user, logout_user
-from apps.auth.utils import confirm_token, generate_token, send_email
+from apps.auth.utils import confirm_token, generate_token, send_email, oauth
 from apps.extensions import db
 from apps.dbmodels import User
 from .forms import SignUpForm, LoginForm
@@ -108,3 +108,29 @@ def reset_password(token):
         flash('비밀번호가 변경되었습니다.', 'success')
         return redirect(url_for('auth.login'))
     return render_template('auth/reset_password.html')
+
+@auth.route('/login/google')
+def google_login():
+    # 구글 로그인 페이지로 보내버리기
+    redirect_uri = url_for('auth.google_authorize', _external=True)
+    print(f"DEBUG: 생성된 리디렉션 주소는 -> {redirect_uri}") # 터미널 확인용
+    return oauth.google.authorize_redirect(redirect_uri)
+
+@auth.route('/login/google/callback')
+def google_authorize():
+    # 구글이 보낸 증명서를 확인하기
+    token = oauth.google.authorize_access_token()
+    user_info = token.get('userinfo')
+    
+    # DB에서 이 이메일의 사용자가 있는지 확인
+    user = User.query.filter_by(email=user_info['email']).first()
+    
+    if not user:
+        # 처음 온 사람이라면 회원가입 시켜주기
+        user = User(username=user_info['name'], email=user_info['email'], confirmed=True)
+        db.session.add(user)
+        db.session.commit()
+    
+    login_user(user)
+    flash(f"{user.username}님, 구글 계정으로 로그인되었습니다!", "success")
+    return redirect(url_for('main.index'))

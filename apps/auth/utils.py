@@ -4,6 +4,12 @@ from flask_mail import Message
 from itsdangerous import URLSafeTimedSerializer
 from apps.extensions import mail
 from threading import Thread
+from authlib.integrations.flask_client import OAuth # OAuth 라이브러리 임포트
+from flask import current_app
+
+# oauth 객체 생성
+oauth = OAuth() 
+
 def generate_token(email, salt):
     serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
     return serializer.dumps(email, salt=salt)
@@ -33,3 +39,13 @@ def send_email(subject, to, template, **kwargs):
     else:
         # 비동기 전송 시도
         Thread(target=send_async_email, args=[app, msg]).start()
+
+def register_social_login(app):
+    oauth.init_app(app)
+    oauth.register(
+        name='google',
+        client_id=app.config.get('GOOGLE_CLIENT_ID'),
+        client_secret=app.config.get('GOOGLE_CLIENT_SECRET'),
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'}
+    )
