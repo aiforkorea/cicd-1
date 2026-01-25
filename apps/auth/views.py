@@ -1,26 +1,26 @@
 # apps/auth/views.py
 from datetime import datetime
 from flask import current_app, render_template, flash, url_for, redirect, request
-from flask_login import login_user, logout_user
+from flask_login import current_user, login_user, logout_user
 from apps.auth.utils import confirm_token, generate_token, send_email, oauth
 from apps.extensions import db
 from apps.dbmodels import User
-from .forms import SignUpForm, LoginForm
+from .forms import ResetPasswordForm, ResetPasswordRequestForm, SignUpForm, LoginForm
 from . import auth  # 현재 패키지(__init__.py)의 auth Blueprint 객체 임포트
+
 # index 엔드포인트
 @auth.route("/")
 def index():
     return render_template("auth/index.html")
+
 # signup 엔드포인트
 @auth.route("/signup", methods=["GET", "POST"])
 def signup():
     form = SignUpForm()
     if form.validate_on_submit():
         user = User(
-            username=form.username.data,
-            email=form.email.data,
-            password=form.password.data,
-            confirmed=False # 기본값 미인증
+            username=form.username.data, email=form.email.data,
+            password=form.password.data, confirmed=False # 기본값 미인증
         )
         db.session.add(user)
         db.session.commit()
@@ -37,6 +37,7 @@ def signup():
         flash("가입 확인 메일이 발송되었습니다. 이메일을 확인해주세요.", "info")
         return redirect(url_for("auth.login"))
     return render_template("auth/signup.html", form=form)
+
 # login 엔드포인트
 @auth.route("/login",methods=["GET", "POST"])     
 def login():
@@ -54,21 +55,21 @@ def login():
                 return redirect(url_for("auth.login"))
             # 사용자 정보 세션 저장
             login_user(user, remember=form.remember.data)
-            
             send_email("[보안] 로그인 알림", user.email, "auth/email/login_notification",
                        username=user.username, login_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                        ip_address=request.remote_addr, user_agent=request.user_agent.string)
-
             return redirect(url_for("main.index"))   # main.index로 이동
         # 로그인 실패 메시지
         flash("이메일 주소 및 비번 확인 필요")
     return render_template("auth/login.html",form=form)
+
 # logout 엔드포인트 
 @auth.route("/logout")     
 def logout():
     # 사용자 로그아웃
     logout_user()
     return redirect(url_for("auth.login"))
+
 @auth.route('/confirm/<token>')
 def confirm_email(token):
     email = confirm_token(token, salt='email-confirm-salt')
@@ -84,30 +85,57 @@ def confirm_email(token):
         db.session.commit()
         flash('이메일 인증이 완료되었습니다!', 'success')
     return redirect(url_for('main.index'))
-@auth.route('/reset_password_request', methods=['GET', 'POST'])
+
+@auth.route('/reset-password-request', methods=['GET', 'POST'])
 def reset_password_request():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        user = User.query.filter_by(email=email).first()
+    # 1. 이미 로그인한 사용자가 이 페이지에 오면 홈으로 보냅니다.
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+    form = ResetPasswordRequestForm()
+    if form.validate_on_submit():
+        # 2. 입력받은 이메일로 사용자를 찾습니다.
+        user = User.query.filter_by(email=form.email.data).first()
         if user:
+            # 3. 1회용 보안 토큰 생성 (salt를 'password-reset-salt'로 지정)
             token = generate_token(user.email, salt='password-reset-salt')
-            # 여기서 실제로 이메일 발송 함수 호출 (예: send_email(user.email, token))
-            flash('비밀번호 재설정 이메일을 발송했습니다.', 'info')
-            return redirect(url_for('auth.login'))
-    return render_template('auth/reset_password_request.html')
+            # 4. 사용자가 클릭할 전체 URL 생성 (_external=True 필수!)
+            reset_url = url_for('auth.reset_password', token=token, _external=True)
+            # 5. 이메일 발송
+            send_email(
+                subject="[MyService] 비밀번호 재설정 요청", to=user.email, 
+                template="auth/email/reset_password",
+                username=user.username, 
+                reset_url=reset_url
+            )
+        # 6. 보안 팁: 실제 이메일이 있든 없든 같은 메시지를 보여줌. 특정 이메일 가입 여부 확인 못하게 하기 위함
+        flash('비밀번호 재설정 지침이 담긴 이메일을 보냈습니다. 메일함을 확인해 주세요.', 'info')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/reset_password_request.html', form=form)
+
+# 2. 실제 비밀번호 변경 페이지 (메일 링크 클릭 시 접속)
 @auth.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     email = confirm_token(token, salt='password-reset-salt')
     if not email:
-        flash('유효하지 않거나 만료된 토큰입니다.', 'danger')
+        flash('유효하지 않거나 만료된 링크입니다.', 'danger')
         return redirect(url_for('auth.login'))
-    if request.method == 'POST':
-        user = User.query.filter_by(email=email).first_or_404()
-        user.password = request.form.get('password') # Setter에 의해 해싱됨
+    user = User.query.filter_by(email=email).first_or_404()
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user.password = form.password.data # 모델의 setter에 의해 자동 해싱
         db.session.commit()
-        flash('비밀번호가 변경되었습니다.', 'success')
+        # 보안 알림 메일 발송
+        send_email(
+            subject="[보안] 비밀번호가 성공적으로 변경되었습니다",
+            to=user.email,
+            template="auth/email/password_changed",
+            username=user.username,
+            change_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            user_agent=request.user_agent.string
+        )
+        flash('비밀번호가 변경되었습니다. 이제 새 비밀번호로 로그인하세요.', 'success')
         return redirect(url_for('auth.login'))
-    return render_template('auth/reset_password.html')
+    return render_template('auth/reset_password.html', form=form)
 
 @auth.route('/login/google')
 def google_login():

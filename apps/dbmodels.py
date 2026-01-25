@@ -14,7 +14,7 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, index=True)
     email = db.Column(db.String, unique=True, index=True, nullable=False)
-    # 소셜 유저를 위해 True로 변경 및 구글 로그인 시 password를 비워두고, 인증 시간을 기록, 일반 유저는  
+    # 소셜 유저를 위해 True로 변경 및 구글 로그인 시 password를 비워두고, 인증 시간을 기록, 일반 유저는 암호 입력을 별도 처리
     password_hash = db.Column(db.String, nullable=True)   
     user_type = db.Column(db.Enum(UserType), nullable=False, default=UserType.USER)
     #is_admin=db.Column(db.Boolean,default=False)   # 코드 수정 최소화를 위해 잔류
